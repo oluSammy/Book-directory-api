@@ -33,7 +33,6 @@ exports.getOne = (Model) =>
 
 exports.getAll = (Model) =>
   catchAsync(async (req, res, next) => {
-    console.log(req.query);
     const features = new ApiFeatures(Model.find(), req.query)
       .filter()
       .sort()
@@ -47,22 +46,52 @@ exports.getAll = (Model) =>
     });
   });
 
+exports.updateOne = (Model) =>
+  catchAsync(async (req, res, next) => {
+    const query = Model.findByIdAndUpdate(req.params.id, req.body, {
+      runValidators: true,
+      new: true,
+    });
+
+    const doc = await query;
+    if (!doc) return next(new AppError('no document matched the id', 404));
+
+    res.status(200).json({
+      status: 200,
+      data: doc,
+    });
+  });
+
+exports.deleteOne = (Model) =>
+  catchAsync(async (req, res, next) => {
+    const query = Model.findByIdAndDelete(req.params.id);
+    const doc = await query;
+
+    if (!doc) return next(new AppError('no document matched that id', 404));
+
+    res.status(204).json({
+      status: 'success',
+      data: null,
+    });
+  });
+
 exports.search = (Model) =>
   catchAsync(async (req, res, next) => {
     const searchArr = ['title', 'subtitle', 'author', 'publisher'];
+    let searchQuery;
     searchArr.forEach((field) => {
       if (req.query[field]) {
         const regex = new RegExp(escapeRegex(req.query[field]), 'gi');
         delete req.query[field];
-        req.query = { ...req.query, [field]: regex };
+        req.query = { ...req.query };
+        searchQuery = { [field]: regex };
       }
     });
 
-    const features = new ApiFeatures(Model.find({ ...req.query }), req.query)
+    const features = new ApiFeatures(Model.find(searchQuery), req.query)
       .sort()
       .limit()
       .pagination();
-
     const doc = await features.query;
 
     // send response
