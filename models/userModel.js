@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
@@ -36,6 +37,13 @@ const userSchema = new mongoose.Schema({
     type: Date,
     select: true,
   },
+  passwordResetToken: String,
+  passwordResetExpires: Date,
+  role: {
+    type: String,
+    enum: ['user', 'admin', 'super-admin'],
+    default: 'user',
+  },
   photo: String,
 });
 
@@ -51,6 +59,14 @@ userSchema.pre('save', async function (next) {
   next();
 });
 
+// pre-save document middleware to set passwordChangedAt property when user change password
+userSchema.pre('save', function (next) {
+  if (!this.isModified('password') || this.isNew) return next();
+
+  this.passwordChangedAt = Date.now() - 2000;
+  next();
+});
+
 // instance method is a method that is available on all documents of a collection
 userSchema.methods.correctPassword = async function (
   candidatePassword,
@@ -59,6 +75,7 @@ userSchema.methods.correctPassword = async function (
   return await bcrypt.compare(candidatePassword, userPassword);
 };
 
+// method to verify if jwt was issued after password was changed
 userSchema.methods.changedPasswordAfterJwt = function (jwtTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimeStamp = parseInt(
@@ -71,6 +88,23 @@ userSchema.methods.changedPasswordAfterJwt = function (jwtTimestamp) {
   //
   return false;
 };
+
+// instance method to generate random token
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  console.log({ resetToken }, this.passwordResetToken);
+
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
+};
+
 const User = mongoose.model('User', userSchema);
 
 module.exports = User;

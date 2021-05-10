@@ -10,11 +10,15 @@ const {
   deleteBook,
 } = bookController;
 
-const { protectRoute } = authController;
+const { protectRoute, restrictRole } = authController;
 
 const router = express.Router();
 
 router.route('/').post(createBook).get(protectRoute, getAllBooks);
-router.route('/:id').get(getBook).patch(updateBook).delete(deleteBook);
+router
+  .route('/:id')
+  .get(getBook)
+  .patch(updateBook)
+  .delete(protectRoute, restrictRole('admin'), deleteBook);
 
 module.exports = router;
